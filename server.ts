@@ -413,6 +413,20 @@ if (agencyCount.count === 0) {
   }
 }
 
+// Seed specific requested user for login
+try {
+  const existingUser = db.prepare("SELECT * FROM users WHERE email = ?").get("aidan@me.com");
+  if (!existingUser) {
+    const salt = bcrypt.genSaltSync(10);
+    const password_hash = bcrypt.hashSync("1234567890", salt);
+    db.prepare("INSERT INTO users (id, agency_id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)")
+      .run("user_aidan", "agency_1", "Aidan Compton", "aidan@me.com", password_hash, 'admin');
+    console.log("Seeded user 'Aidan Compton' successfully.");
+  }
+} catch (e: any) {
+  console.error("Error seeding specified user:", e.message);
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
