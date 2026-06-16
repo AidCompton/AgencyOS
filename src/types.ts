@@ -146,3 +146,18 @@ export interface Contract {
   signed_at: string;
   status: string;
 }
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+}
+
+export interface Report {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  type: 'performance' | 'client' | 'campaign';
+}

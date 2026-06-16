@@ -14,6 +14,8 @@ import {
   ArrowDownRight,
   Filter,
   Calendar,
+  Mail,
+  CheckSquare,
   Layers,
   CheckCircle2,
   AlertCircle,
@@ -21,6 +23,7 @@ import {
   Heart,
   Zap,
   Target,
+  Trash2,
   BarChart3,
   PieChart,
   ShieldAlert,
@@ -65,9 +68,212 @@ import {
   subMonths,
   isToday
 } from 'date-fns';
-import { AgencyOverview, Lead, Client, Campaign, CampaignMetric, Task, CalendarEvent, TeamMember, Retainer, Service, TimeEntry, Contract } from './types';
+import { AgencyOverview, Lead, Client, Campaign, CampaignMetric, Task, CalendarEvent, TeamMember, Retainer, Service, TimeEntry, Contract, User, Report } from './types';
+import CalendarViewCustom from './components/CalendarViewCustom';
+import GmailViewCustom from './components/GmailViewCustom';
+import GoogleTasksViewCustom from './components/GoogleTasksViewCustom';
 
 // --- Components ---
+
+const AuthView: React.FC<{ onAuthSuccess: (user: User) => void }> = ({ onAuthSuccess }) => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
+    const body = isLogin ? { email, password } : { name, email, password };
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        onAuthSuccess(data.user);
+      } else {
+        setError(data.error || 'Authentication failed');
+      }
+    } catch (err) {
+      setError('Connection error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const res = await fetch('/api/auth/google/url');
+      const { url } = await res.json();
+      
+      const authWindow = window.open(url, 'google_oauth', 'width=600,height=700');
+      
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+          // Re-check auth state
+          window.location.reload();
+        }
+      };
+      
+      window.addEventListener('message', handleMessage);
+    } catch (err) {
+      setError('Google login failed');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-deep-night flex items-center justify-center p-6 selection:bg-mint selection:text-deep-night">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-mint/5 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-sky/5 rounded-full blur-[120px]" />
+      </div>
+
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md relative z-10"
+      >
+        <div className="flex flex-col items-center mb-12">
+          <div className="w-16 h-16 bg-mint rounded-[2rem] flex items-center justify-center shadow-[0_0_40px_rgba(78,255,168,0.3)] mb-6">
+            <Layers className="w-8 h-8 text-deep-night" />
+          </div>
+          <h1 className="text-4xl font-bold tracking-tighter font-display text-white">AgencyOS</h1>
+          <p className="text-zinc-500 mt-2 font-medium">The central operating system for modern agencies.</p>
+        </div>
+
+        <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl shadow-2xl">
+          <div className="flex gap-4 mb-8 p-1 bg-white/5 rounded-xl">
+            <button 
+              onClick={() => setIsLogin(true)}
+              className={cn(
+                "flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-all",
+                isLogin ? "bg-white/10 text-white shadow-lg" : "text-zinc-500 hover:text-zinc-300"
+              )}
+            >
+              Login
+            </button>
+            <button 
+              onClick={() => setIsLogin(false)}
+              className={cn(
+                "flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-all",
+                !isLogin ? "bg-white/10 text-white shadow-lg" : "text-zinc-500 hover:text-zinc-300"
+              )}
+            >
+              Sign Up
+            </button>
+          </div>
+
+          <AnimatePresence mode="wait">
+            <motion.form 
+              key={isLogin ? 'login' : 'signup'}
+              initial={{ opacity: 0, x: isLogin ? -20 : 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: isLogin ? 20 : -20 }}
+              onSubmit={handleSubmit}
+              className="space-y-5"
+            >
+              {!isLogin && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Full Name</label>
+                  <div className="relative">
+                    <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <input 
+                      required
+                      type="text"
+                      placeholder="John Doe"
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20 transition-all placeholder:text-zinc-700"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Email Address</label>
+                <div className="relative">
+                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  <input 
+                    required
+                    type="email"
+                    placeholder="name@agency.com"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20 transition-all placeholder:text-zinc-700"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Password</label>
+                <div className="relative">
+                  <ShieldAlert className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  <input 
+                    required
+                    type="password"
+                    placeholder="••••••••"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20 transition-all placeholder:text-zinc-700"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-400 text-xs font-bold text-center"
+                >
+                  {error}
+                </motion.div>
+              )}
+
+              <button 
+                type="submit"
+                disabled={loading}
+                className="w-full py-4 bg-mint text-deep-night font-bold text-xs uppercase tracking-[0.2em] rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_30px_rgba(78,255,168,0.2)] disabled:opacity-50"
+              >
+                {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
+              </button>
+
+              <div className="relative py-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-white/5"></div>
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase tracking-widest font-bold">
+                  <span className="bg-deep-night px-4 text-zinc-600">Or continue with</span>
+                </div>
+              </div>
+
+              <button 
+                type="button"
+                onClick={handleGoogleLogin}
+                className="w-full py-4 bg-white/5 border border-white/10 text-white font-bold text-xs uppercase tracking-[0.2em] rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center gap-3"
+              >
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" referrerPolicy="no-referrer" />
+                Google Account
+              </button>
+            </motion.form>
+          </AnimatePresence>
+        </div>
+
+        <p className="mt-8 text-center text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
+          By continuing, you agree to AgencyOS's <span className="text-zinc-400 hover:text-mint cursor-pointer transition-colors">Terms of Service</span>
+        </p>
+      </motion.div>
+    </div>
+  );
+};
 
 const ClientCalendar = ({ events, onDateClick }: { events: CalendarEvent[], onDateClick: (date: Date) => void }) => {
   const [currentDate, setCurrentDate] = useState(new Date('2026-03-05'));
@@ -185,11 +391,12 @@ const ClientCalendar = ({ events, onDateClick }: { events: CalendarEvent[], onDa
 const ClientDetailView: React.FC<{ 
   client: Client, 
   onBack: () => void,
+  onAddTask: () => void,
   activeTimer: any,
   setActiveTimer: any,
   elapsedSeconds: number,
   formatTime: (s: number) => string
-}> = ({ client, onBack, activeTimer, setActiveTimer, elapsedSeconds, formatTime }) => {
+}> = ({ client, onBack, onAddTask, activeTimer, setActiveTimer, elapsedSeconds, formatTime }) => {
   const [retainer, setRetainer] = useState<Retainer | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
@@ -257,13 +464,26 @@ const ClientDetailView: React.FC<{
         fetch(`/api/events?client_id=${client.id}`)
       ]);
 
-      setRetainer(await retRes.json());
-      setServices(await servRes.json());
-      setTimeEntries(await timeRes.json());
-      setContracts(await contRes.json());
-      setEvents(await eventRes.json());
+      const [retData, servData, timeData, contData, eventData] = await Promise.all([
+        retRes.json(),
+        servRes.json(),
+        timeRes.json(),
+        contRes.json(),
+        eventRes.json()
+      ]);
+
+      setRetainer(retData && !retData.error ? retData : null);
+      setServices(Array.isArray(servData) ? servData : []);
+      setTimeEntries(Array.isArray(timeData) ? timeData : []);
+      setContracts(Array.isArray(contData) ? contData : []);
+      setEvents(Array.isArray(eventData) ? eventData : []);
     } catch (err) {
       console.error("Failed to fetch client details", err);
+      // Ensure we have empty arrays on error
+      setServices([]);
+      setTimeEntries([]);
+      setContracts([]);
+      setEvents([]);
     } finally {
       setLoading(false);
     }
@@ -326,7 +546,7 @@ const ClientDetailView: React.FC<{
     </div>
   );
 
-  const totalUsedHours = services.reduce((acc, s) => acc + (s.used_hours || 0), 0);
+  const totalUsedHours = Array.isArray(services) ? services.reduce((acc, s) => acc + (s.used_hours || 0), 0) : 0;
   const totalAllocatedHours = retainer?.total_hours || 0;
   const usagePercent = totalAllocatedHours > 0 ? (totalUsedHours / totalAllocatedHours) * 100 : 0;
 
@@ -343,6 +563,13 @@ const ClientDetailView: React.FC<{
           </div>
         </div>
         <div className="flex gap-3">
+          <button 
+            onClick={onAddTask}
+            className="flex items-center gap-2 px-6 py-3 text-sm font-bold uppercase tracking-widest text-zinc-400 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Add Task
+          </button>
           {activeTimer && activeTimer.client_id === client.id ? (
             <div className="flex items-center gap-4 px-4 py-2 bg-rose-500/10 border border-rose-500/20 rounded-xl animate-pulse">
               <div className="flex flex-col">
@@ -1056,9 +1283,26 @@ const TaskCard: React.FC<{ task: Task, onClick?: () => void }> = ({ task, onClic
           </div>
         </div>
       </div>
-      <button className="p-1.5 text-zinc-600 hover:text-mint transition-colors opacity-0 group-hover:opacity-100">
-        <CheckCircle2 className="w-4 h-4" />
-      </button>
+      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            // handleCompleteTask(task.id);
+          }}
+          className="p-1.5 text-zinc-600 hover:text-mint transition-colors"
+        >
+          <CheckCircle2 className="w-4 h-4" />
+        </button>
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            // This will be passed from parent
+          }}
+          className="p-1.5 text-zinc-600 hover:text-rose-400 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 };
@@ -1167,8 +1411,14 @@ const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label:
   </button>
 );
 
-const StatCard = ({ label, value, trend, trendValue, prefix = "" }: { label: string, value: string | number, trend?: 'up' | 'down', trendValue?: string, prefix?: string }) => (
-  <div className="p-6 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
+const StatCard = ({ label, value, trend, trendValue, prefix = "", onClick }: { label: string, value: string | number, trend?: 'up' | 'down', trendValue?: string, prefix?: string, onClick?: () => void }) => (
+  <div 
+    onClick={onClick} 
+    className={cn(
+      "p-6 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm transition-all duration-200 select-none",
+      onClick ? "cursor-pointer hover:bg-white/10 hover:border-mint/50 hover:shadow-[0_0_20px_rgba(78,255,168,0.1)] active:scale-[0.98]" : ""
+    )}
+  >
     <div className="flex items-start justify-between">
       <div>
         <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">{label}</p>
@@ -1189,12 +1439,45 @@ const StatCard = ({ label, value, trend, trendValue, prefix = "" }: { label: str
   </div>
 );
 
+
 // --- Views ---
 
-const DashboardView = ({ overview, tasks, events, onTaskClick }: { overview: AgencyOverview | null, tasks: Task[], events: CalendarEvent[], onTaskClick: (task: Task) => void }) => {
+const DashboardView = ({ 
+  overview, 
+  tasks, 
+  events, 
+  leads,
+  onTaskClick, 
+  user,
+  onNewTask,
+  onAddLead,
+  onMeeting,
+  onReport,
+  onDeleteLead,
+  onDeleteTask,
+  onActiveWorkloadClick,
+  onBehindScheduleClick,
+  onCompletedClick
+}: { 
+  overview: AgencyOverview | null, 
+  tasks: Task[], 
+  events: CalendarEvent[], 
+  leads: Lead[],
+  onTaskClick: (task: Task) => void, 
+  user: User | null,
+  onNewTask: () => void,
+  onAddLead: () => void,
+  onMeeting: () => void,
+  onReport: () => void,
+  onDeleteLead: (id: string) => void,
+  onDeleteTask: (id: string) => void,
+  onActiveWorkloadClick?: () => void,
+  onBehindScheduleClick?: () => void,
+  onCompletedClick?: () => void
+}) => {
   if (!overview) return null;
 
-  const today = new Date('2026-03-05');
+  const today = new Date();
   const activeTasks = tasks.filter(t => t.status !== 'completed');
   const overdueTasks = activeTasks.filter(t => {
     const internal = t.internal_deadline ? new Date(t.internal_deadline) : null;
@@ -1203,6 +1486,8 @@ const DashboardView = ({ overview, tasks, events, onTaskClick }: { overview: Age
   });
   const completedTasks = tasks.filter(t => t.status === 'completed');
   const highPriorityActive = activeTasks.filter(t => t.priority === 'high').length;
+
+  const firstName = user?.name.split(' ')[0] || 'Alex';
 
   const data = [
     { name: 'Jan', revenue: 40000, churn: 2 },
@@ -1217,13 +1502,13 @@ const DashboardView = ({ overview, tasks, events, onTaskClick }: { overview: Age
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight font-display">Welcome back, Alex</h2>
+          <h2 className="text-4xl font-bold tracking-tight font-display text-white">Welcome back, {firstName}</h2>
           <p className="text-sm text-zinc-500 mt-1 font-medium">Here's what's happening across your agency today.</p>
         </div>
         <div className="flex gap-3">
           <div className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl">
             <Clock className="w-4 h-4 text-mint" />
-            <span className="text-xs font-bold text-white">Thursday, March 5</span>
+            <span className="text-xs font-bold text-white">{format(today, 'EEEE, MMMM d')}</span>
           </div>
         </div>
       </div>
@@ -1236,18 +1521,21 @@ const DashboardView = ({ overview, tasks, events, onTaskClick }: { overview: Age
               value={activeTasks.length} 
               trend={activeTasks.length > 10 ? "up" : "down"} 
               trendValue={`${highPriorityActive} High Priority`} 
+              onClick={onActiveWorkloadClick}
             />
             <StatCard 
               label="Behind Schedule" 
               value={overdueTasks.length} 
               trend={overdueTasks.length > 0 ? "up" : "down"} 
               trendValue={overdueTasks.length > 0 ? "Critical" : "On Track"} 
+              onClick={onBehindScheduleClick}
             />
             <StatCard 
               label="Completed (MTD)" 
               value={completedTasks.length} 
               trend="up" 
               trendValue="Velocity +15%" 
+              onClick={onCompletedClick}
             />
           </div>
 
@@ -1327,25 +1615,69 @@ const DashboardView = ({ overview, tasks, events, onTaskClick }: { overview: Age
               </div>
             </div>
             <div className="p-8 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
-              <h3 className="text-xl font-bold font-display mb-8">Quick Actions</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <button className="flex flex-col items-center justify-center gap-3 p-4 bg-white/5 border border-white/5 rounded-xl hover:bg-mint/10 hover:border-mint/30 transition-all group">
-                  <Plus className="w-5 h-5 text-zinc-500 group-hover:text-mint" />
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white">New Task</span>
-                </button>
-                <button className="flex flex-col items-center justify-center gap-3 p-4 bg-white/5 border border-white/5 rounded-xl hover:bg-sky/10 hover:border-sky/30 transition-all group">
-                  <Users className="w-5 h-5 text-zinc-500 group-hover:text-sky" />
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white">Add Lead</span>
-                </button>
-                <button className="flex flex-col items-center justify-center gap-3 p-4 bg-white/5 border border-white/5 rounded-xl hover:bg-orange-400/10 hover:border-orange-400/30 transition-all group">
-                  <Calendar className="w-5 h-5 text-zinc-500 group-hover:text-orange-400" />
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white">Meeting</span>
-                </button>
-                <button className="flex flex-col items-center justify-center gap-3 p-4 bg-white/5 border border-white/5 rounded-xl hover:bg-rose-400/10 hover:border-rose-400/30 transition-all group">
-                  <BarChart3 className="w-5 h-5 text-zinc-500 group-hover:text-rose-400" />
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white">Report</span>
-                </button>
+              <div className="flex items-center justify-between mb-8">
+                <h3 className="text-xl font-bold font-display">Active Leads</h3>
+                <button onClick={onAddLead} className="text-[10px] font-bold text-sky uppercase tracking-widest hover:underline">Add New</button>
               </div>
+              <div className="space-y-4">
+                {leads.length > 0 ? leads.slice(0, 5).map(lead => (
+                  <div key={lead.id} className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl hover:border-sky/30 transition-all group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-sky/10 flex items-center justify-center text-sky font-bold">
+                        {lead.company_name[0]}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white">{lead.company_name}</h4>
+                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{lead.industry} • ${lead.estimated_value?.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => onDeleteLead(lead.id)}
+                      className="p-2 text-zinc-600 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )) : (
+                  <div className="text-center py-8">
+                    <p className="text-xs text-zinc-600">No active leads.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="p-8 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
+            <h3 className="text-xl font-bold font-display mb-8">Quick Actions</h3>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <button 
+                onClick={onNewTask}
+                className="flex flex-col items-center justify-center gap-3 p-4 bg-white/5 border border-white/5 rounded-xl hover:bg-mint/10 hover:border-mint/30 transition-all group"
+              >
+                <Plus className="w-5 h-5 text-zinc-500 group-hover:text-mint" />
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white">New Task</span>
+              </button>
+              <button 
+                onClick={onAddLead}
+                className="flex flex-col items-center justify-center gap-3 p-4 bg-white/5 border border-white/5 rounded-xl hover:bg-sky/10 hover:border-sky/30 transition-all group"
+              >
+                <Users className="w-5 h-5 text-zinc-500 group-hover:text-sky" />
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white">Add Lead</span>
+              </button>
+              <button 
+                onClick={onMeeting}
+                className="flex flex-col items-center justify-center gap-3 p-4 bg-white/5 border border-white/5 rounded-xl hover:bg-orange-400/10 hover:border-orange-400/30 transition-all group"
+              >
+                <Calendar className="w-5 h-5 text-zinc-500 group-hover:text-orange-400" />
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white">Meeting</span>
+              </button>
+              <button 
+                onClick={onReport}
+                className="flex flex-col items-center justify-center gap-3 p-4 bg-white/5 border border-white/5 rounded-xl hover:bg-rose-400/10 hover:border-rose-400/30 transition-all group"
+              >
+                <BarChart3 className="w-5 h-5 text-zinc-500 group-hover:text-rose-400" />
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest group-hover:text-white">Report</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1391,14 +1723,25 @@ const DashboardView = ({ overview, tasks, events, onTaskClick }: { overview: Age
   );
 };
 
-const ClientLifecycleView = ({ clients }: { clients: Client[] }) => {
+const ClientLifecycleView = ({ 
+  clients, 
+  onUpdateClient,
+  onAddCard
+}: { 
+  clients: Client[], 
+  onUpdateClient: (id: string, updates: Partial<Client>) => void,
+  onAddCard: (stage: string) => void
+}) => {
   const stages = ['prospect', 'proposal', 'onboarding', 'active', 'review', 'renewal'];
   
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight font-display">Client Success Pipeline</h2>
-        <button className="flex items-center gap-2 px-6 py-3 text-sm font-bold uppercase tracking-widest text-deep-night bg-mint rounded-xl hover:scale-105 transition-all shadow-[0_0_20px_rgba(78,255,168,0.2)]">
+        <button 
+          onClick={() => onAddCard('prospect')}
+          className="flex items-center gap-2 px-6 py-3 text-sm font-bold uppercase tracking-widest text-deep-night bg-mint rounded-xl hover:scale-105 transition-all shadow-[0_0_20px_rgba(78,255,168,0.2)]"
+        >
           <Plus className="w-4 h-4" />
           Add Card
         </button>
@@ -1414,7 +1757,10 @@ const ClientLifecycleView = ({ clients }: { clients: Client[] }) => {
                   ({clients.filter(c => c.lifecycle_stage === stage).length})
                 </span>
               </h3>
-              <button className="text-zinc-600 hover:text-mint transition-colors">
+              <button 
+                onClick={() => onAddCard(stage)}
+                className="text-zinc-600 hover:text-mint transition-colors"
+              >
                 <Plus className="w-4 h-4" />
               </button>
             </div>
@@ -1442,7 +1788,33 @@ const ClientLifecycleView = ({ clients }: { clients: Client[] }) => {
                         client.health_label === 'At Risk' ? "text-orange-400" : "text-rose-400"
                       )}>{client.health_label}</p>
                     </div>
-                    <MoreVertical className="w-4 h-4 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const currentIndex = stages.indexOf(stage);
+                          if (currentIndex > 0) {
+                            onUpdateClient(client.id, { lifecycle_stage: stages[currentIndex - 1] as any });
+                          }
+                        }}
+                        className="p-1 text-zinc-600 hover:text-white transition-colors"
+                      >
+                        <ChevronRight className="w-3 h-3 rotate-180" />
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const currentIndex = stages.indexOf(stage);
+                          if (currentIndex < stages.length - 1) {
+                            onUpdateClient(client.id, { lifecycle_stage: stages[currentIndex + 1] as any });
+                          }
+                        }}
+                        className="p-1 text-zinc-600 hover:text-white transition-colors"
+                      >
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
+                      <MoreVertical className="w-4 h-4 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
                   </div>
                   
                   <div className="mt-4 flex items-center gap-2">
@@ -1475,12 +1847,22 @@ const ClientLifecycleView = ({ clients }: { clients: Client[] }) => {
   );
 };
 
-const ClientsView = ({ clients, activeTimer, setActiveTimer, elapsedSeconds, formatTime }: { 
+const ClientsView = ({ 
+  clients, 
+  activeTimer, 
+  setActiveTimer, 
+  elapsedSeconds, 
+  formatTime,
+  onDeleteClient,
+  onAddTask
+}: { 
   clients: Client[], 
   activeTimer: any,
   setActiveTimer: any,
   elapsedSeconds: number,
-  formatTime: (s: number) => string
+  formatTime: (s: number) => string,
+  onDeleteClient: (id: string) => void,
+  onAddTask: () => void
 }) => {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
@@ -1489,6 +1871,7 @@ const ClientsView = ({ clients, activeTimer, setActiveTimer, elapsedSeconds, for
       <ClientDetailView 
         client={selectedClient} 
         onBack={() => setSelectedClient(null)} 
+        onAddTask={onAddTask}
         activeTimer={activeTimer}
         setActiveTimer={setActiveTimer}
         elapsedSeconds={elapsedSeconds}
@@ -1580,9 +1963,26 @@ const ClientsView = ({ clients, activeTimer, setActiveTimer, elapsedSeconds, for
                   </span>
                 </td>
                 <td className="px-8 py-5">
-                  <button className="p-2 text-zinc-600 hover:text-mint transition-colors bg-white/5 rounded-lg">
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedClient(client);
+                      }}
+                      className="p-2 text-zinc-600 hover:text-mint transition-colors bg-white/5 rounded-lg"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteClient(client.id);
+                      }}
+                      className="p-2 text-zinc-600 hover:text-rose-400 transition-colors bg-white/5 rounded-lg opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -1593,7 +1993,19 @@ const ClientsView = ({ clients, activeTimer, setActiveTimer, elapsedSeconds, for
   );
 };
 
-const CampaignsView = ({ campaigns, clients, onRefresh }: { campaigns: Campaign[], clients: Client[], onRefresh: () => void }) => {
+const CampaignsView = ({ 
+  campaigns, 
+  clients, 
+  onRefresh,
+  onDeleteCampaign,
+  onUpdateStatus
+}: { 
+  campaigns: Campaign[], 
+  clients: Client[], 
+  onRefresh: () => void,
+  onDeleteCampaign: (id: string) => void,
+  onUpdateStatus: (id: string, status: string) => void
+}) => {
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [metrics, setMetrics] = useState<CampaignMetric[]>([]);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -1669,12 +2081,12 @@ const CampaignsView = ({ campaigns, clients, onRefresh }: { campaigns: Campaign[
     }
   }, [selectedCampaign]);
 
-  const totals = metrics.reduce((acc, m) => ({
+  const totals = Array.isArray(metrics) ? metrics.reduce((acc, m) => ({
     spend: acc.spend + (m.spend || 0),
     impressions: acc.impressions + (m.impressions || 0),
     clicks: acc.clicks + (m.clicks || 0),
     conversions: acc.conversions + (m.conversions || 0),
-  }), { spend: 0, impressions: 0, clicks: 0, conversions: 0 });
+  }), { spend: 0, impressions: 0, clicks: 0, conversions: 0 }) : { spend: 0, impressions: 0, clicks: 0, conversions: 0 };
 
   return (
     <div className="space-y-6">
@@ -1702,7 +2114,7 @@ const CampaignsView = ({ campaigns, clients, onRefresh }: { campaigns: Campaign[
               key={campaign.id} 
               onClick={() => setSelectedCampaign(campaign)}
               className={cn(
-                "p-6 bg-white/5 border rounded-2xl backdrop-blur-sm cursor-pointer transition-all",
+                "p-6 bg-white/5 border rounded-2xl backdrop-blur-sm cursor-pointer transition-all group",
                 selectedCampaign?.id === campaign.id ? "border-mint ring-1 ring-mint" : "border-white/10 hover:border-white/30"
               )}
             >
@@ -1712,12 +2124,31 @@ const CampaignsView = ({ campaigns, clients, onRefresh }: { campaigns: Campaign[
                   <h3 className="text-xl font-bold mt-2 font-display text-white">{campaign.name}</h3>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  <span className={cn(
-                    "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider",
-                    campaign.status === 'launch' ? "bg-sky/10 text-sky" : "bg-white/5 text-zinc-500"
-                  )}>
-                    {campaign.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <select 
+                      value={campaign.status}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => onUpdateStatus(campaign.id, e.target.value)}
+                      className={cn(
+                        "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-zinc-500 focus:outline-none",
+                        campaign.status === 'launch' ? "text-sky" : ""
+                      )}
+                    >
+                      <option value="draft">Draft</option>
+                      <option value="launch">Launch</option>
+                      <option value="paused">Paused</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteCampaign(campaign.id);
+                      }}
+                      className="p-1.5 text-zinc-600 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                   {campaign.meta_ad_account_id && (
                     <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[8px] font-bold rounded uppercase tracking-widest">
                       <Globe className="w-2 h-2" />
@@ -2021,12 +2452,15 @@ const CampaignsView = ({ campaigns, clients, onRefresh }: { campaigns: Campaign[
   );
 };
 
-const TeamView = ({ team }: { team: TeamMember[] }) => {
+const TeamView = ({ team, onAddMember }: { team: TeamMember[], onAddMember: () => void }) => {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight font-display">Team & Workload</h2>
-        <button className="flex items-center gap-2 px-6 py-3 text-sm font-bold uppercase tracking-widest text-deep-night bg-mint rounded-xl hover:scale-105 transition-all shadow-[0_0_20px_rgba(78,255,168,0.2)]">
+        <button 
+          onClick={onAddMember}
+          className="flex items-center gap-2 px-6 py-3 text-sm font-bold uppercase tracking-widest text-deep-night bg-mint rounded-xl hover:scale-105 transition-all shadow-[0_0_20px_rgba(78,255,168,0.2)]"
+        >
           <Plus className="w-4 h-4" />
           Add Member
         </button>
@@ -2098,102 +2532,202 @@ const TeamView = ({ team }: { team: TeamMember[] }) => {
   );
 };
 
-const InsightsView = ({ clients, overview }: { clients: Client[], overview: AgencyOverview | null }) => {
+const InsightsView = ({ 
+  clients, 
+  overview, 
+  reports, 
+  onGenerateReport, 
+  isGenerating 
+}: { 
+  clients: Client[], 
+  overview: AgencyOverview | null,
+  reports: Report[],
+  onGenerateReport: (type: string) => void,
+  isGenerating: boolean
+}) => {
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight font-display">Predictive Insights</h2>
         <div className="flex gap-3">
-          <div className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl">
-            <ShieldAlert className="w-4 h-4 text-rose-400" />
-            <span className="text-xs font-bold text-white">2 Clients at Critical Risk</span>
-          </div>
+          <button 
+            onClick={() => onGenerateReport('performance')}
+            disabled={isGenerating}
+            className="flex items-center gap-2 px-6 py-3 text-sm font-bold uppercase tracking-widest text-deep-night bg-mint rounded-xl hover:scale-105 transition-all shadow-[0_0_20px_rgba(78,255,168,0.2)] disabled:opacity-50"
+          >
+            {isGenerating ? <Activity className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            Generate AI Report
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <div className="p-8 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
-          <h3 className="text-xl font-bold font-display mb-8">Churn Prediction</h3>
-          <div className="space-y-6">
-            {clients.filter(c => c.health_score < 70).map((client) => (
-              <div key={client.id} className="flex items-center justify-between p-4 bg-rose-400/5 border border-rose-400/10 rounded-xl">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-rose-400/20 flex items-center justify-center text-rose-400 font-bold">
-                    {client.name[0]}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-8">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+            <div className="p-8 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
+              <h3 className="text-xl font-bold font-display mb-8">Churn Prediction</h3>
+              <div className="space-y-6">
+                {clients.filter(c => c.health_score < 70).map((client) => (
+                  <div key={client.id} className="flex items-center justify-between p-4 bg-rose-400/5 border border-rose-400/10 rounded-xl">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-rose-400/20 flex items-center justify-center text-rose-400 font-bold">
+                        {client.name[0]}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white">{client.name}</h4>
+                        <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest">Critical Risk Signal</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-zinc-500">Predicted Churn</p>
+                      <p className="text-sm font-bold text-rose-400">Next 30 Days</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-bold text-white">{client.name}</h4>
-                    <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest">Critical Risk Signal</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-bold text-zinc-500">Predicted Churn</p>
-                  <p className="text-sm font-bold text-rose-400">Next 30 Days</p>
+                ))}
+                <div className="pt-4">
+                  <button className="w-full py-3 text-[10px] font-bold uppercase tracking-widest border border-white/10 rounded-xl hover:bg-white/5 transition-all text-zinc-400">
+                    View All Risk Indicators
+                  </button>
                 </div>
               </div>
-            ))}
-            <div className="pt-4">
-              <button className="w-full py-3 text-[10px] font-bold uppercase tracking-widest border border-white/10 rounded-xl hover:bg-white/5 transition-all text-zinc-400">
-                View All Risk Indicators
-              </button>
+            </div>
+
+            <div className="p-8 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
+              <h3 className="text-xl font-bold font-display mb-8">Upsell Opportunities</h3>
+              <div className="space-y-6">
+                {[
+                  { client: 'FinTech Solutions', opportunity: 'Budget Expansion', signal: 'High ROAS (4.2x)', potential: '+$5,000/mo' },
+                  { client: 'Acme Corp', opportunity: 'Cross-sell SEO', signal: 'Organic Traffic Growth', potential: '+$3,500/mo' },
+                  { client: 'BioHealth Inc', opportunity: 'Social Media Management', signal: 'New Product Launch', potential: '+$2,800/mo' },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-mint/5 border border-mint/10 rounded-xl">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-mint/20 flex items-center justify-center text-mint font-bold">
+                        {item.client[0]}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white">{item.client}</h4>
+                        <p className="text-[10px] font-bold text-mint uppercase tracking-widest">{item.opportunity}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-zinc-500">{item.signal}</p>
+                      <p className="text-sm font-bold text-mint">{item.potential}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="p-8 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
+            <h3 className="text-xl font-bold font-display mb-8">Revenue Forecast (Next 6 Months)</h3>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={[
+                  { month: 'Jul', base: 55000, expansion: 5000, new: 8000 },
+                  { month: 'Aug', base: 58000, expansion: 7000, new: 10000 },
+                  { month: 'Sep', base: 62000, expansion: 8000, new: 12000 },
+                  { month: 'Oct', base: 65000, expansion: 10000, new: 15000 },
+                  { month: 'Nov', base: 70000, expansion: 12000, new: 18000 },
+                  { month: 'Dec', base: 75000, expansion: 15000, new: 20000 },
+                ]}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#71717a', fontWeight: 600}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#71717a', fontWeight: 600}} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0A0F0D', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}
+                    itemStyle={{ color: '#4EFFA8' }}
+                  />
+                  <Bar dataKey="base" stackId="a" fill="#0A5470" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="expansion" stackId="a" fill="#38D4F5" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="new" stackId="a" fill="#4EFFA8" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>
 
-        <div className="p-8 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
-          <h3 className="text-xl font-bold font-display mb-8">Upsell Opportunities</h3>
-          <div className="space-y-6">
-            {[
-              { client: 'FinTech Solutions', opportunity: 'Budget Expansion', signal: 'High ROAS (4.2x)', potential: '+$5,000/mo' },
-              { client: 'Acme Corp', opportunity: 'Cross-sell SEO', signal: 'Organic Traffic Growth', potential: '+$3,500/mo' },
-              { client: 'BioHealth Inc', opportunity: 'Social Media Management', signal: 'New Product Launch', potential: '+$2,800/mo' },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between p-4 bg-mint/5 border border-mint/10 rounded-xl">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-mint/20 flex items-center justify-center text-mint font-bold">
-                    {item.client[0]}
+        <div className="space-y-8">
+          <div className="p-8 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
+            <h3 className="text-xl font-bold font-display mb-8">Generated Reports</h3>
+            <div className="space-y-4">
+              {reports.length > 0 ? reports.map(report => (
+                <button 
+                  key={report.id}
+                  onClick={() => setSelectedReport(report)}
+                  className="w-full p-4 bg-white/[0.02] border border-white/5 rounded-xl hover:border-mint/30 transition-all text-left group"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                      {format(new Date(report.created_at), 'MMM d, yyyy')}
+                    </span>
+                    <FileText className="w-4 h-4 text-zinc-700 group-hover:text-mint transition-colors" />
                   </div>
-                  <div>
-                    <h4 className="font-bold text-white">{item.client}</h4>
-                    <p className="text-[10px] font-bold text-mint uppercase tracking-widest">{item.opportunity}</p>
-                  </div>
+                  <p className="text-sm font-bold text-white truncate">{report.title}</p>
+                  <p className="text-[10px] font-bold text-mint uppercase tracking-widest mt-1">{report.type}</p>
+                </button>
+              )) : (
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
+                  <p className="text-sm text-zinc-600">No reports generated yet.</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs font-bold text-zinc-500">{item.signal}</p>
-                  <p className="text-sm font-bold text-mint">{item.potential}</p>
-                </div>
-              </div>
-            ))}
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="p-8 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
-        <h3 className="text-xl font-bold font-display mb-8">Revenue Forecast (Next 6 Months)</h3>
-        <div className="h-[300px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={[
-              { month: 'Jul', base: 55000, expansion: 5000, new: 8000 },
-              { month: 'Aug', base: 58000, expansion: 7000, new: 10000 },
-              { month: 'Sep', base: 62000, expansion: 8000, new: 12000 },
-              { month: 'Oct', base: 65000, expansion: 10000, new: 15000 },
-              { month: 'Nov', base: 70000, expansion: 12000, new: 18000 },
-              { month: 'Dec', base: 75000, expansion: 15000, new: 20000 },
-            ]}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#71717a', fontWeight: 600}} />
-              <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#71717a', fontWeight: 600}} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#0A0F0D', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}
-                itemStyle={{ color: '#4EFFA8' }}
-              />
-              <Bar dataKey="base" stackId="a" fill="#0A5470" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="expansion" stackId="a" fill="#38D4F5" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="new" stackId="a" fill="#4EFFA8" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+      <AnimatePresence>
+        {selectedReport && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-deep-night/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-4xl bg-zinc-900 border border-white/10 rounded-3xl p-10 shadow-2xl overflow-y-auto max-h-[90vh]"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-3xl font-bold font-display text-white">{selectedReport.title}</h3>
+                  <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mt-2">
+                    Generated on {format(new Date(selectedReport.created_at), 'MMMM d, yyyy HH:mm')}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setSelectedReport(null)}
+                  className="p-3 text-zinc-500 hover:text-white transition-colors bg-white/5 rounded-xl"
+                >
+                  <ChevronRight className="w-5 h-5 rotate-180" />
+                </button>
+              </div>
+              
+              <div className="prose prose-invert max-w-none">
+                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-8 text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                  {selectedReport.content}
+                </div>
+              </div>
+
+              <div className="mt-10 flex justify-end gap-4">
+                <button 
+                  onClick={() => window.print()}
+                  className="px-6 py-3 text-xs font-bold uppercase tracking-widest border border-white/10 rounded-xl hover:bg-white/5 transition-all text-zinc-400"
+                >
+                  Print Report
+                </button>
+                <button 
+                  onClick={() => setSelectedReport(null)}
+                  className="px-6 py-3 text-xs font-bold uppercase tracking-widest bg-mint text-deep-night rounded-xl hover:scale-105 transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -2201,7 +2735,9 @@ const InsightsView = ({ clients, overview }: { clients: Client[], overview: Agen
 // --- Main App ---
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'lifecycle' | 'clients' | 'campaigns' | 'team' | 'insights'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'lifecycle' | 'clients' | 'campaigns' | 'team' | 'insights' | 'calendar' | 'gmail' | 'tasks'>('dashboard');
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [overview, setOverview] = useState<AgencyOverview | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -2209,8 +2745,114 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [systemHealth, setSystemHealth] = useState<any>(null);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [showActiveWorkloadModal, setShowActiveWorkloadModal] = useState(false);
+  const [showBehindScheduleModal, setShowBehindScheduleModal] = useState(false);
+  const [showCompletedTasksModal, setShowCompletedTasksModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+
+  const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  const [showAddLeadModal, setShowAddLeadModal] = useState(false);
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [showAddClientModal, setShowAddClientModal] = useState(false);
+  const [selectedStage, setSelectedStage] = useState('prospect');
+
+  const handleUpdateClient = async (clientId: string, updates: Partial<Client>) => {
+    try {
+      const res = await fetch(`/api/clients/${clientId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (res.ok) {
+        setClients(prev => prev.map(c => c.id === clientId ? { ...c, ...updates } : c));
+      }
+    } catch (err) {
+      console.error("Failed to update client", err);
+    }
+  };
+
+  const handleAddClient = async (clientData: any) => {
+    try {
+      const res = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(clientData)
+      });
+      if (res.ok) {
+        const { id } = await res.json();
+        setClients(prev => [...prev, { ...clientData, id, onboarding_status: 'pending', health_score: 100, health_label: 'Healthy' }]);
+        setShowAddClientModal(false);
+      }
+    } catch (err) {
+      console.error("Failed to add client", err);
+    }
+  };
+
+  const handleAddLead = async (leadData: any) => {
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(leadData)
+      });
+      if (res.ok) {
+        const { id } = await res.json();
+        setLeads(prev => [...prev, { ...leadData, id, status: 'lead' }]);
+        setShowAddLeadModal(false);
+      }
+    } catch (err) {
+      console.error("Failed to add lead", err);
+    }
+  };
+
+  const handleAddTask = async (taskData: any) => {
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...taskData,
+          agency_id: 'agency_1',
+          status: 'todo',
+          priority: 'medium'
+        })
+      });
+      if (res.ok) {
+        const { id } = await res.json();
+        setTasks(prev => [...prev, { ...taskData, id, status: 'todo', priority: 'medium' }]);
+        setShowNewTaskModal(false);
+      }
+    } catch (err) {
+      console.error("Failed to add task", err);
+    }
+  };
+
+  const handleScheduleMeeting = async (eventData: any) => {
+    try {
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(eventData)
+      });
+      if (res.ok) {
+        const { id } = await res.json();
+        setEvents(prev => [...prev, { ...eventData, id }]);
+        setShowMeetingModal(false);
+      }
+    } catch (err) {
+      console.error("Failed to schedule meeting", err);
+    }
+  };
 
   // Global Timer State
   const [activeTimer, setActiveTimer] = useState<{ startTime: number, service_id: string, description: string, client_id: string, client_name: string } | null>(null);
@@ -2236,16 +2878,36 @@ export default function App() {
   };
 
   useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        const data = await res.json();
+        if (data.user) {
+          setUser(data.user);
+        }
+      } catch (err) {
+        console.error("Auth check failed", err);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
     const fetchData = async () => {
       try {
-        const [overviewRes, leadsRes, clientsRes, campaignsRes, tasksRes, eventsRes, teamRes] = await Promise.all([
+        const [overviewRes, leadsRes, clientsRes, campaignsRes, tasksRes, eventsRes, teamRes, reportsRes, healthRes] = await Promise.all([
           fetch('/api/agency/overview'),
           fetch('/api/leads'),
           fetch('/api/clients'),
           fetch('/api/campaigns'),
           fetch('/api/tasks'),
           fetch('/api/events'),
-          fetch('/api/team')
+          fetch('/api/team'),
+          fetch('/api/reports'),
+          fetch('/api/system/health')
         ]);
 
         const checkResponse = async (res: Response) => {
@@ -2261,14 +2923,16 @@ export default function App() {
           return res.json();
         };
 
-        const [overviewData, leadsData, clientsData, campaignsData, tasksData, eventsData, teamData] = await Promise.all([
+        const [overviewData, leadsData, clientsData, campaignsData, tasksData, eventsData, teamData, reportsData, healthData] = await Promise.all([
           checkResponse(overviewRes),
           checkResponse(leadsRes),
           checkResponse(clientsRes),
           checkResponse(campaignsRes),
           checkResponse(tasksRes),
           checkResponse(eventsRes),
-          checkResponse(teamRes)
+          checkResponse(teamRes),
+          checkResponse(reportsRes),
+          checkResponse(healthRes)
         ]);
 
         setOverview(overviewData);
@@ -2282,6 +2946,8 @@ export default function App() {
         })));
         setEvents(eventsData);
         setTeam(teamData);
+        setReports(reportsData);
+        setSystemHealth(healthData);
       } catch (error) {
         console.error("Failed to fetch data", error);
       } finally {
@@ -2289,8 +2955,123 @@ export default function App() {
       }
     };
 
-    fetchData();
-  }, []);
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (searchQuery.length > 2) {
+      const delayDebounceFn = setTimeout(async () => {
+        setIsSearching(true);
+        try {
+          const res = await fetch(`/api/search?q=${searchQuery}`);
+          const data = await res.json();
+          setSearchResults(data);
+        } catch (err) {
+          console.error("Search failed", err);
+        } finally {
+          setIsSearching(false);
+        }
+      }, 300);
+
+      return () => clearTimeout(delayDebounceFn);
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchQuery]);
+
+  const handleLogout = async () => {
+    try {
+      setAuthLoading(true);
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error("Logout fetch failed", err);
+    } finally {
+      setUser(null);
+      setLoading(true);
+      window.location.href = '/';
+    }
+  };
+
+  const handleGenerateReport = async (type: string) => {
+    setGeneratingReport(true);
+    try {
+      const res = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type })
+      });
+      if (res.ok) {
+        // Refresh data to get new report
+        const reportsRes = await fetch('/api/reports');
+        const reportsData = await reportsRes.json();
+        setReports(reportsData);
+      }
+    } catch (err) {
+      console.error("Failed to generate report", err);
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
+  const handleDeleteItem = async (type: 'clients' | 'leads' | 'tasks', id: string) => {
+    if (!confirm(`Are you sure you want to delete this ${type.slice(0, -1)}?`)) return;
+    try {
+      const res = await fetch(`/api/${type}/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        if (type === 'clients') setClients(prev => prev.filter(c => c.id !== id));
+        if (type === 'leads') setLeads(prev => prev.filter(l => l.id !== id));
+        if (type === 'tasks') setTasks(prev => prev.filter(t => t.id !== id));
+      }
+    } catch (err) {
+      console.error(`Failed to delete ${type}`, err);
+    }
+  };
+
+  const handleUpdateCampaignStatus = async (id: string, status: string) => {
+    try {
+      const res = await fetch(`/api/campaigns/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: status as any } : c));
+      }
+    } catch (err) {
+      console.error("Failed to update campaign status", err);
+    }
+  };
+
+  const handleAddMember = async (memberData: any) => {
+    try {
+      const res = await fetch('/api/team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(memberData)
+      });
+      if (res.ok) {
+        const { id } = await res.json();
+        setTeam(prev => [...prev, { ...memberData, id, allocated_hours: 0, revenue_managed: 0, retention_rate: 100, on_time_percentage: 100, satisfaction_score: 10 }]);
+        setShowAddMemberModal(false);
+      }
+    } catch (err) {
+      console.error("Failed to add team member", err);
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-deep-night flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-white/5 border-t-mint rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthView onAuthSuccess={setUser} />;
+  }
 
   return (
     <div className="flex h-screen bg-deep-night font-sans text-white overflow-hidden selection:bg-mint selection:text-deep-night">
@@ -2341,6 +3122,24 @@ export default function App() {
               active={activeTab === 'insights'} 
               onClick={() => setActiveTab('insights')} 
             />
+            <SidebarItem 
+              icon={Calendar} 
+              label="Calendar" 
+              active={activeTab === 'calendar'} 
+              onClick={() => setActiveTab('calendar')} 
+            />
+            <SidebarItem 
+              icon={Mail} 
+              label="Gmail" 
+              active={activeTab === 'gmail'} 
+              onClick={() => setActiveTab('gmail')} 
+            />
+            <SidebarItem 
+              icon={CheckSquare} 
+              label="Google Tasks" 
+              active={activeTab === 'tasks'} 
+              onClick={() => setActiveTab('tasks')} 
+            />
           </nav>
         </div>
 
@@ -2367,11 +3166,18 @@ export default function App() {
           )}
           <div>
             <SidebarItem icon={Settings} label="Settings" onClick={() => {}} />
+            <SidebarItem 
+              icon={ShieldAlert} 
+              label="Log Out" 
+              onClick={handleLogout} 
+            />
             <div className="mt-8 flex items-center gap-4 px-3 py-2">
-              <div className="w-10 h-10 rounded-2xl bg-deep-teal border border-white/10 flex items-center justify-center text-xs font-bold shadow-lg">AR</div>
+              <div className="w-10 h-10 rounded-2xl bg-deep-teal border border-white/10 flex items-center justify-center text-xs font-bold shadow-lg">
+                {user.name.split(' ').map(n => n[0]).join('')}
+              </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold truncate font-display">Alex Reed</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 truncate">Administrator</p>
+                <p className="text-sm font-bold truncate font-display">{user.name}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 truncate">{user.role || 'User'}</p>
               </div>
             </div>
           </div>
@@ -2382,12 +3188,74 @@ export default function App() {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
         <header className="h-20 flex-shrink-0 border-b border-white/5 bg-deep-night/50 backdrop-blur-md flex items-center justify-between px-10">
-          <div className="flex items-center gap-4">
-            <h1 className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.3em]">
+          <div className="flex items-center gap-8 flex-1">
+            <h1 className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.3em] flex-shrink-0">
               {activeTab.replace('_', ' ')}
             </h1>
+            
+            <div className="relative max-w-md w-full">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <input 
+                type="text" 
+                placeholder="Search clients, campaigns, leads..."
+                className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20 transition-all placeholder:text-zinc-700"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+              
+              <AnimatePresence>
+                {searchResults.length > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50"
+                  >
+                    {searchResults.map((result, i) => (
+                      <button 
+                        key={i}
+                        onClick={() => {
+                          if (result.type === 'client') {
+                            setActiveTab('clients');
+                            // We might want to select the client too, but that's complex
+                          } else if (result.type === 'campaign') {
+                            setActiveTab('campaigns');
+                          } else if (result.type === 'lead') {
+                            setActiveTab('dashboard');
+                          }
+                          setSearchQuery('');
+                        }}
+                        className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold uppercase",
+                            result.type === 'client' ? "bg-mint/10 text-mint" :
+                            result.type === 'campaign' ? "bg-sky/10 text-sky" :
+                            "bg-orange-400/10 text-orange-400"
+                          )}>
+                            {result.type[0]}
+                          </div>
+                          <div className="text-left">
+                            <p className="text-sm font-bold text-white">{result.name}</p>
+                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{result.type}</p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-zinc-700" />
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
           <div className="flex items-center gap-6">
+            {systemHealth && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-mint/5 border border-mint/10 rounded-lg">
+                <div className="w-1.5 h-1.5 bg-mint rounded-full animate-pulse shadow-[0_0_8px_#4EFFA8]" />
+                <span className="text-[9px] font-bold text-mint uppercase tracking-widest">v{systemHealth.version}</span>
+              </div>
+            )}
             <button className="p-2.5 text-zinc-500 hover:text-mint transition-all relative bg-white/5 rounded-xl">
               <Bell className="w-5 h-5" />
               <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-mint rounded-full border-2 border-deep-night"></span>
@@ -2416,8 +3284,35 @@ export default function App() {
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  {activeTab === 'dashboard' && <DashboardView overview={overview} tasks={tasks} events={events} onTaskClick={setSelectedTask} />}
-                  {activeTab === 'lifecycle' && <ClientLifecycleView clients={clients} />}
+                  {activeTab === 'dashboard' && (
+                    <DashboardView 
+                      overview={overview} 
+                      tasks={tasks} 
+                      events={events} 
+                      leads={leads}
+                      onTaskClick={setSelectedTask} 
+                      user={user} 
+                      onNewTask={() => setShowNewTaskModal(true)}
+                      onAddLead={() => setShowAddLeadModal(true)}
+                      onMeeting={() => setShowMeetingModal(true)}
+                      onReport={() => setActiveTab('insights')}
+                      onDeleteLead={(id) => handleDeleteItem('leads', id)}
+                      onDeleteTask={(id) => handleDeleteItem('tasks', id)}
+                      onActiveWorkloadClick={() => setShowActiveWorkloadModal(true)}
+                      onBehindScheduleClick={() => setShowBehindScheduleModal(true)}
+                      onCompletedClick={() => setShowCompletedTasksModal(true)}
+                    />
+                  )}
+                  {activeTab === 'lifecycle' && (
+                    <ClientLifecycleView 
+                      clients={clients} 
+                      onUpdateClient={handleUpdateClient}
+                      onAddCard={(stage) => {
+                        setSelectedStage(stage);
+                        setShowAddClientModal(true);
+                      }}
+                    />
+                  )}
                   {activeTab === 'clients' && (
                     <ClientsView 
                       clients={clients} 
@@ -2425,6 +3320,8 @@ export default function App() {
                       setActiveTimer={setActiveTimer}
                       elapsedSeconds={elapsedSeconds}
                       formatTime={formatTime}
+                      onDeleteClient={(id) => handleDeleteItem('clients', id)}
+                      onAddTask={() => setShowNewTaskModal(true)}
                     />
                   )}
                   {activeTab === 'campaigns' && (
@@ -2436,10 +3333,34 @@ export default function App() {
                         const data = await res.json();
                         setCampaigns(data);
                       }}
+                      onDeleteCampaign={(id) => handleDeleteItem('campaigns' as any, id)}
+                      onUpdateStatus={handleUpdateCampaignStatus}
                     />
                   )}
-                  {activeTab === 'team' && <TeamView team={team} />}
-                  {activeTab === 'insights' && <InsightsView clients={clients} overview={overview} />}
+                  {activeTab === 'team' && (
+                    <TeamView 
+                      team={team} 
+                      onAddMember={() => setShowAddMemberModal(true)} 
+                    />
+                  )}
+                  {activeTab === 'insights' && (
+                    <InsightsView 
+                      clients={clients} 
+                      overview={overview} 
+                      reports={reports}
+                      onGenerateReport={handleGenerateReport}
+                      isGenerating={generatingReport}
+                    />
+                  )}
+                  {activeTab === 'calendar' && (
+                    <CalendarViewCustom />
+                  )}
+                  {activeTab === 'gmail' && (
+                    <GmailViewCustom />
+                  )}
+                  {activeTab === 'tasks' && (
+                    <GoogleTasksViewCustom />
+                  )}
                 </motion.div>
               </AnimatePresence>
             )}
@@ -2458,6 +3379,428 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* New Task Modal */}
+      {showNewTaskModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-deep-night/80 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-2xl">
+            <h3 className="text-2xl font-bold font-display text-white mb-6">Create New Task</h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              handleAddTask({
+                title: formData.get('title'),
+                assigned_to: formData.get('assigned_to'),
+                due_date: formData.get('due_date'),
+                category: formData.get('category'),
+                brief: formData.get('brief')
+              });
+            }} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Task Title</label>
+                <input name="title" required className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20" placeholder="e.g. Q1 Strategy Review" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Assign To</label>
+                  <select name="assigned_to" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20">
+                    {team.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Due Date</label>
+                  <input name="due_date" type="date" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Category</label>
+                <input name="category" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20" placeholder="e.g. Strategy, SEO, PPC" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Brief / Description</label>
+                <textarea name="brief" rows={3} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20 resize-none" placeholder="Task details..." />
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setShowNewTaskModal(false)} className="flex-1 py-3 text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 py-3 bg-mint text-deep-night text-xs font-bold uppercase tracking-widest rounded-xl hover:scale-105 transition-all">Create Task</button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Add Lead Modal */}
+      {showAddLeadModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-deep-night/80 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-2xl">
+            <h3 className="text-2xl font-bold font-display text-white mb-6">Add New Lead</h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              handleAddLead({
+                company_name: formData.get('company_name'),
+                industry: formData.get('industry'),
+                source: formData.get('source'),
+                estimated_value: parseFloat(formData.get('estimated_value') as string) || 0
+              });
+            }} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Company Name</label>
+                <input name="company_name" required className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky/20" placeholder="e.g. Acme SaaS" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Industry</label>
+                  <input name="industry" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky/20" placeholder="e.g. Technology" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Source</label>
+                  <input name="source" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky/20" placeholder="e.g. Inbound, Referral" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Estimated Monthly Value ($)</label>
+                <input name="estimated_value" type="number" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-sky/20" placeholder="5000" />
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setShowAddLeadModal(false)} className="flex-1 py-3 text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 py-3 bg-sky text-deep-night text-xs font-bold uppercase tracking-widest rounded-xl hover:scale-105 transition-all">Add Lead</button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Meeting Modal */}
+      {showMeetingModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-deep-night/80 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-2xl">
+            <h3 className="text-2xl font-bold font-display text-white mb-6">Schedule Meeting</h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              handleScheduleMeeting({
+                title: formData.get('title'),
+                type: formData.get('type'),
+                date: formData.get('date'),
+                description: formData.get('description'),
+                client_id: formData.get('client_id')
+              });
+            }} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Meeting Title</label>
+                <input name="title" required className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-400/20" placeholder="e.g. Weekly Sync" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Type</label>
+                  <select name="type" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-400/20">
+                    <option value="meeting">Internal Meeting</option>
+                    <option value="client_meeting">Client Meeting</option>
+                    <option value="campaign_launch">Campaign Launch</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Date & Time</label>
+                  <input name="date" type="datetime-local" required className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-400/20" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Related Client (Optional)</label>
+                <select name="client_id" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-400/20">
+                  <option value="">None</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Agenda / Notes</label>
+                <textarea name="description" rows={3} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-400/20 resize-none" placeholder="Meeting agenda..." />
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setShowMeetingModal(false)} className="flex-1 py-3 text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 py-3 bg-orange-400 text-deep-night text-xs font-bold uppercase tracking-widest rounded-xl hover:scale-105 transition-all">Schedule</button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Add Client Card Modal */}
+      {showAddClientModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-deep-night/80 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-2xl">
+            <h3 className="text-2xl font-bold font-display text-white mb-6">Add Client to {selectedStage}</h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              handleAddClient({
+                name: formData.get('name'),
+                lifecycle_stage: selectedStage,
+                health_label: formData.get('health_label'),
+                retainer_amount: parseFloat(formData.get('retainer_amount') as string) || 0
+              });
+            }} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Client Name</label>
+                <input name="name" required className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20" placeholder="e.g. Acme Corp" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Initial Health</label>
+                  <select name="health_label" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20">
+                    <option value="Healthy">Healthy</option>
+                    <option value="Stable">Stable</option>
+                    <option value="At Risk">At Risk</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Retainer Amount ($)</label>
+                  <input name="retainer_amount" type="number" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20" placeholder="3500" />
+                </div>
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setShowAddClientModal(false)} className="flex-1 py-3 text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 py-3 bg-mint text-deep-night text-xs font-bold uppercase tracking-widest rounded-xl hover:scale-105 transition-all">Add Client</button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+      {/* Add Member Modal */}
+      {showAddMemberModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-deep-night/80 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-2xl">
+            <h3 className="text-2xl font-bold font-display text-white mb-6">Add Team Member</h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              handleAddMember({
+                name: formData.get('name'),
+                role: formData.get('role'),
+                capacity_hours: parseInt(formData.get('capacity_hours') as string) || 40
+              });
+            }} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Full Name</label>
+                <input name="name" required className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20" placeholder="e.g. Sarah Jenkins" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Role</label>
+                <select name="role" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20">
+                  <option value="Account Manager">Account Manager</option>
+                  <option value="SEO Specialist">SEO Specialist</option>
+                  <option value="PPC Expert">PPC Expert</option>
+                  <option value="Creative Director">Creative Director</option>
+                  <option value="Developer">Developer</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Weekly Capacity (Hours)</label>
+                <input name="capacity_hours" type="number" defaultValue={40} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-mint/20" />
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setShowAddMemberModal(false)} className="flex-1 py-3 text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 py-3 bg-mint text-deep-night text-xs font-bold uppercase tracking-widest rounded-xl hover:scale-105 transition-all">Add Member</button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Active Workload Modal */}
+      {showActiveWorkloadModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-deep-night/80 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-2xl font-bold font-display text-white">Active Workload</h3>
+                <p className="text-xs text-zinc-500 mt-1 uppercase tracking-wider">All currently outstanding tasks</p>
+              </div>
+              <button 
+                onClick={() => setShowActiveWorkloadModal(false)}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-white bg-white/5 border border-white/10 rounded-xl transition-all hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-white/10">
+              {tasks.filter(t => t.status !== 'completed').length > 0 ? (
+                tasks.filter(t => t.status !== 'completed').map(task => (
+                  <div 
+                    key={task.id}
+                    onClick={() => {
+                      setSelectedTask(task);
+                      setShowActiveWorkloadModal(false);
+                    }}
+                    className="p-4 bg-white/5 border border-white/5 rounded-xl hover:border-mint/30 hover:bg-white/10 transition-all cursor-pointer flex items-center justify-between group"
+                  >
+                    <div className="flex-1 min-w-0 pr-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{task.category}</span>
+                        <span className={cn(
+                          "px-2 py-0.5 text-[9px] font-bold rounded uppercase",
+                          task.priority === 'high' ? "bg-rose-400/10 text-rose-400" :
+                          task.priority === 'medium' ? "bg-orange-400/10 text-orange-400" : "bg-zinc-500/10 text-zinc-500"
+                        )}>
+                          {task.priority}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-white text-sm truncate group-hover:text-mint transition-colors">{task.title}</h4>
+                      {task.due_date && (
+                        <p className="text-[10px] font-bold text-zinc-600 mt-1 uppercase tracking-wider">Due: {task.due_date}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded-lg text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                        {task.status}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-mint transition-colors" />
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-sm text-zinc-500">No active work items at the moment.</p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Behind Schedule Modal */}
+      {showBehindScheduleModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-deep-night/80 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-2xl font-bold font-display text-rose-400">Behind Schedule</h3>
+                <p className="text-xs text-zinc-500 mt-1 uppercase tracking-wider">Tasks that missed their internal/external deadlines</p>
+              </div>
+              <button 
+                onClick={() => setShowBehindScheduleModal(false)}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-white bg-white/5 border border-white/10 rounded-xl transition-all hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-white/10">
+              {tasks.filter(t => {
+                if (t.status === 'completed') return false;
+                const internal = t.internal_deadline ? new Date(t.internal_deadline) : null;
+                const external = t.external_deadline ? new Date(t.external_deadline) : null;
+                const todayVal = new Date();
+                return (internal && internal < todayVal) || (external && external < todayVal);
+              }).length > 0 ? (
+                tasks.filter(t => {
+                  if (t.status === 'completed') return false;
+                  const internal = t.internal_deadline ? new Date(t.internal_deadline) : null;
+                  const external = t.external_deadline ? new Date(t.external_deadline) : null;
+                  const todayVal = new Date();
+                  return (internal && internal < todayVal) || (external && external < todayVal);
+                }).map(task => (
+                  <div 
+                    key={task.id}
+                    onClick={() => {
+                      setSelectedTask(task);
+                      setShowBehindScheduleModal(false);
+                    }}
+                    className="p-4 bg-rose-500/5 border border-rose-500/10 rounded-xl hover:border-rose-400/30 hover:bg-rose-500/10 transition-all cursor-pointer flex items-center justify-between group"
+                  >
+                    <div className="flex-1 min-w-0 pr-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold text-rose-400 uppercase tracking-widest">{task.category}</span>
+                        <span className="px-2 py-0.5 text-[9px] font-bold bg-rose-500/15 text-rose-400 rounded uppercase">
+                          overdue
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-white text-sm truncate group-hover:text-rose-400 transition-colors">{task.title}</h4>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+                        {task.internal_deadline && (
+                          <span className="text-orange-400/80">Internal: {task.internal_deadline}</span>
+                        )}
+                        {task.external_deadline && (
+                          <span className="text-rose-400/80">External: {task.external_deadline}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="px-2.5 py-1 bg-rose-400/10 border border-rose-400/20 rounded-lg text-[10px] font-bold text-rose-400 uppercase tracking-widest">
+                        {task.priority} Priority
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-rose-400 transition-colors" />
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-sm text-zinc-500">All active tasks are currently on schedule! Outstanding job.</p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Completed Tasks Modal */}
+      {showCompletedTasksModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-deep-night/80 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-2xl font-bold font-display text-mint">Completed Tasks</h3>
+                <p className="text-xs text-zinc-500 mt-1 uppercase tracking-wider">All successfully completed tasks</p>
+              </div>
+              <button 
+                onClick={() => setShowCompletedTasksModal(false)}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-white bg-white/5 border border-white/10 rounded-xl transition-all hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-white/10">
+              {tasks.filter(t => t.status === 'completed').length > 0 ? (
+                tasks.filter(t => t.status === 'completed').map(task => (
+                  <div 
+                    key={task.id}
+                    onClick={() => {
+                      setSelectedTask(task);
+                      setShowCompletedTasksModal(false);
+                    }}
+                    className="p-4 bg-mint/5 border border-mint/10 rounded-xl hover:border-mint/30 hover:bg-mint/10 transition-all cursor-pointer flex items-center justify-between group"
+                  >
+                    <div className="flex-1 min-w-0 pr-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold text-mint uppercase tracking-widest">{task.category}</span>
+                        <span className="px-2 py-0.5 text-[9px] font-bold bg-mint/10 text-mint rounded uppercase">
+                          completed
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-white text-sm truncate group-hover:text-mint transition-colors">{task.title}</h4>
+                      {task.completed_at && (
+                        <p className="text-[10px] font-bold text-zinc-500 mt-1 uppercase tracking-wider">Completed at: {task.completed_at}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="px-2.5 py-1 bg-mint/10 border border-mint/20 rounded-lg text-[10px] font-bold text-mint uppercase tracking-widest">
+                        Done
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-mint transition-colors" />
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-sm text-zinc-500">No completed tasks yet. Let's make some progress!</p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
